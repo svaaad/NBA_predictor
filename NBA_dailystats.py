@@ -21,50 +21,63 @@ HEADERS = {
 
 import requests
 import random
+import time
 
 def get_free_proxy():
-    """Fetches a random free US-based HTTP proxy to mask our GitHub IP."""
-    try:
-        # ProxyScrape free API: Elite anonymity, HTTPS, US-based only
-        url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=us&ssl=yes&anonymity=elite"
-        response = requests.get(url, timeout=10)
-        
-        # Split the text response into a list of IPs
-        proxies = response.text.strip().split('\r\n')
-        
-        if proxies and proxies[0]:
-            chosen_proxy = random.choice(proxies)
-            return f"http://{chosen_proxy}"
-    except Exception as e:
-        print(f"Failed to fetch proxy list: {e}")
-        
-    return None # Fallback to no proxy if the API fails
+    """Fetches a random free proxy, trying multiple APIs as backups."""
+    proxy_apis = [
+        "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=us&ssl=yes&anonymity=elite",
+        "https://www.proxy-list.download/api/v1/get?type=http&anon=elite&country=US"
+    ]
+    
+    for url in proxy_apis:
+        try:
+            print(f"Asking {url.split('/')[2]} for a disguise...")
+            # We use custom headers here too, just in case the proxy sites are picky
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                # Clean up the response and split by line breaks
+                proxies = response.text.strip().replace('\r', '').split('\n')
+                proxies = [p for p in proxies if p] # Remove empty strings
+                
+                if proxies:
+                    chosen_proxy = random.choice(proxies)
+                    return f"http://{chosen_proxy}"
+        except Exception as e:
+            print(f" -> Failed to pull from this proxy source: {e}")
+            
+    return None
 
 def fetch_with_retry(endpoint_class, retries=5, **kwargs):
-    # We increased retries to 5 because free proxies can sometimes be slow/dead
     for attempt in range(retries):
         
-        # 1. Grab a fresh disguise for every single attempt
         current_proxy = get_free_proxy()
+        
+        if current_proxy is None:
+            print("❌ CRITICAL: Could not find any free proxies. The API sources are blocking GitHub Actions.")
+            # If we don't have a proxy, we sleep and hope a source unblocks us on the next loop
+            time.sleep(10)
+            continue 
+            
         print(f"\nAttempt {attempt+1}: Routing traffic through proxy {current_proxy}...")
         
         try:
-            # 2. Inject the proxy directly into the NBA API call
             endpoint = endpoint_class(**kwargs, headers=HEADERS, timeout=120, proxy=current_proxy)
             df = endpoint.get_data_frames()[0]
-            print("✅ Data successfully bypassed the firewall!")
+            print("✅ Data successfully bypassed the NBA firewall!")
             return df
             
         except Exception as e:
             if attempt == retries - 1:
-                print("❌ All proxy attempts failed.")
+                print("❌ All proxy attempts failed to pierce the firewall.")
                 raise e
             
-            # Free proxies drop connections often. We wait a few seconds and try a new one.
             delay = 3 * (attempt + 1)
-            print(f"Proxy timeout or rejection. Grabbing a new one in {delay} seconds...")
+            print(f"Proxy timeout or NBA rejected the IP. Grabbing a new one in {delay} seconds...")
             time.sleep(delay)
-
+            
 def run_pipeline():
     print("Starting background data pipeline...")
     
