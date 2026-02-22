@@ -16,7 +16,7 @@ permissions:
 # 3. What should the server do?
 jobs:
   update-data:
-    runs-on: ubuntu-latest # A free Linux server provided by GitHub
+    runs-on: macos-latest # A free Linux server provided by GitHub
 
     steps:
       - name: Checkout repository
