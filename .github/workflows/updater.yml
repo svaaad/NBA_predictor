@@ -34,7 +34,7 @@ jobs:
           # We explicitly install the backend packages needed for updater.py
 
       - name: Run the data pipeline
-        run: python updater.py
+        run: python NBA_dailystats.py
 
       - name: Commit and Push the fresh data
         run: |
@@ -42,7 +42,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # Stage the two files your updater.py script creates
+          # Stage the two files your NBA_dailystats.py script creates
           git add team_form.json schedule.csv
           
           # Commit them. The || true part prevents the workflow from crashing if no new data was found
