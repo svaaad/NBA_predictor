@@ -19,16 +19,50 @@ HEADERS = {
     'Connection': 'keep-alive',
 }
 
-def fetch_with_retry(endpoint_class, retries=4, **kwargs):
+import requests
+import random
+
+def get_free_proxy():
+    """Fetches a random free US-based HTTP proxy to mask our GitHub IP."""
+    try:
+        # ProxyScrape free API: Elite anonymity, HTTPS, US-based only
+        url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=us&ssl=yes&anonymity=elite"
+        response = requests.get(url, timeout=10)
+        
+        # Split the text response into a list of IPs
+        proxies = response.text.strip().split('\r\n')
+        
+        if proxies and proxies[0]:
+            chosen_proxy = random.choice(proxies)
+            return f"http://{chosen_proxy}"
+    except Exception as e:
+        print(f"Failed to fetch proxy list: {e}")
+        
+    return None # Fallback to no proxy if the API fails
+
+def fetch_with_retry(endpoint_class, retries=5, **kwargs):
+    # We increased retries to 5 because free proxies can sometimes be slow/dead
     for attempt in range(retries):
+        
+        # 1. Grab a fresh disguise for every single attempt
+        current_proxy = get_free_proxy()
+        print(f"\nAttempt {attempt+1}: Routing traffic through proxy {current_proxy}...")
+        
         try:
-            endpoint = endpoint_class(**kwargs, headers=HEADERS, timeout=120)
-            return endpoint.get_data_frames()[0]
+            # 2. Inject the proxy directly into the NBA API call
+            endpoint = endpoint_class(**kwargs, headers=HEADERS, timeout=120, proxy=current_proxy)
+            df = endpoint.get_data_frames()[0]
+            print("✅ Data successfully bypassed the firewall!")
+            return df
+            
         except Exception as e:
             if attempt == retries - 1:
+                print("❌ All proxy attempts failed.")
                 raise e
-            delay = 5 * (attempt + 1)
-            print(f"API blocked. Sleeping {delay}s...")
+            
+            # Free proxies drop connections often. We wait a few seconds and try a new one.
+            delay = 3 * (attempt + 1)
+            print(f"Proxy timeout or rejection. Grabbing a new one in {delay} seconds...")
             time.sleep(delay)
 
 def run_pipeline():
