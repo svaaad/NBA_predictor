@@ -1,0 +1,52 @@
+name: Daily NBA Data Updater
+
+# 1. When should this run?
+on:
+  schedule:
+    # Runs at 10:00 AM UTC every day (which is 5:30 AM EST / early morning in the US)
+    - cron: '0 10 * * *'
+  
+  # This line adds a "Run Workflow" button in GitHub so you can test it manually
+  workflow_dispatch: 
+
+# 2. Grant permissions so the bot can save the new data back to your repo
+permissions:
+  contents: write
+
+# 3. What should the server do?
+jobs:
+  update-data:
+    runs-on: ubuntu-latest # A free Linux server provided by GitHub
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas nba_api requests
+          # We explicitly install the backend packages needed for updater.py
+
+      - name: Run the data pipeline
+        run: python updater.py
+
+      - name: Commit and Push the fresh data
+        run: |
+          # Configure the GitHub bot identity
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Stage the two files your updater.py script creates
+          git add team_form.json schedule.csv
+          
+          # Commit them. The || true part prevents the workflow from crashing if no new data was found
+          git commit -m "Automated daily NBA data refresh" || true
+          
+          # Push the updated files back to your repository
+          git push
