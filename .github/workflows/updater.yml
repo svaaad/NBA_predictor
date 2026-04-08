@@ -2,7 +2,7 @@ name: Daily NBA Data Updater
 
 # 1. When should this run?
 on:
-  schedule
+  schedule:
     # Runs at 10:00 AM UTC every day (which is 5:30 AM EST / early morning in the US)
     - cron: '0 10 * * *'
   
